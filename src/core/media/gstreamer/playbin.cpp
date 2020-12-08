@@ -118,6 +118,15 @@ void gstreamer::Playbin::source_setup(GstElement*,
     static_cast<Playbin*>(user_data)->setup_source(source);
 }
 
+void gstreamer::Playbin::element_setup_cb(GstElement*  playbin,
+                                          GstElement*  element,
+                                          gpointer user_data) {
+    if (user_data == nullptr)
+        return;
+
+    static_cast<Playbin*>(user_data)->setup_element(element);
+}
+
 gstreamer::Playbin::Playbin(const core::ubuntu::media::Player::PlayerKey key_in)
     : pipeline(gst_element_factory_make("playbin", pipeline_name().c_str())),
       bus{gst_element_get_bus(pipeline)},
@@ -138,6 +147,7 @@ gstreamer::Playbin::Playbin(const core::ubuntu::media::Player::PlayerKey key_in)
       player_lifetime(media::Player::Lifetime::normal),
       about_to_finish_handler_id(0),
       source_setup_handler_id(0),
+      element_setup_handler_id(0),
       is_missing_audio_codec(false),
       is_missing_video_codec(false),
       audio_stream_id(-1),
@@ -165,6 +175,13 @@ gstreamer::Playbin::Playbin(const core::ubuntu::media::Player::PlayerKey key_in)
         pipeline,
         "source-setup",
         G_CALLBACK(source_setup),
+        this
+        );
+
+    element_setup_handler_id = g_signal_connect(
+        pipeline,
+        "element-setup",
+        G_CALLBACK(element_setup_cb),
         this
         );
 }
@@ -379,14 +396,30 @@ gstreamer::Bus& gstreamer::Playbin::message_bus()
     return bus;
 }
 
+static void got_location (GstObject *gstobject, GstObject *prop_object, GParamSpec *prop, gpointer data) {
+  gchar *location;
+  g_object_get (G_OBJECT (prop_object), "temp-location", &location, NULL);
+  g_print ("Temporary file: %s\n", location);
+  g_free (location);
+  /* Uncomment this line to keep the temporary file after the program exits */
+  /* g_object_set (G_OBJECT (prop_object), "temp-remove", FALSE, NULL); */
+}
+
+
 void gstreamer::Playbin::setup_pipeline_for_audio_video()
 {
     gint flags;
     g_object_get (pipeline, "flags", &flags, nullptr);
     flags |= GST_PLAY_FLAG_AUDIO;
     flags |= GST_PLAY_FLAG_VIDEO;
+    //flags |= GST_PLAY_FLAG_DOWNLOAD; // testing
     flags &= ~GST_PLAY_FLAG_TEXT;
     g_object_set (pipeline, "flags", flags, nullptr);
+
+    /* limit the amount of downloaded data */
+    g_object_set (pipeline, "ring-buffer-max-size", (guint64)1000000, NULL);
+    //g_object_set (pipeline, "temp-template", "/tmp/media-hub/download-buffer-XXXXXX", nullptr);
+    //g_signal_connect (pipeline, "deep-notify::temp-location", G_CALLBACK (got_location), NULL);
 
     const char *asink_name = ::getenv("CORE_UBUNTU_MEDIA_SERVICE_AUDIO_SINK_NAME");
 
@@ -580,6 +613,35 @@ void gstreamer::Playbin::setup_source(GstElement *source)
                                          "user-agent") != NULL) {
             g_object_set(source, "user-agent", request_headers["User-Agent"].c_str(), NULL);
         }
+    }
+}
+
+void gstreamer::Playbin::setup_element(GstElement *element) {
+    gchar *name = gst_element_get_name(element); 
+    MH_INFO("Element setup of: " + (std::string)name); 
+    // queue2-0
+    if(g_strcmp0(name, "queue2-0") == 0) {
+      MH_INFO("Configure buffering: start");
+      g_object_set (G_OBJECT(element), 
+          "max-size-time", (guint64)5000000000,
+          "max-size-bytes",(guint)1000000,
+          "use-buffering", (gboolean)TRUE, 
+          nullptr);
+      MH_INFO("Configure buffering: done");
+      //g_object_set (element, "use-buffering", TRUE, nullptr);
+      //g_object_set (element, "max-size-time", (guint64)5000000000, nullptr);
+      //g_object_set (element, "max-size-bytes", 0, nullptr);
+    }
+    // aqueue
+    if(g_strcmp0(name, "aqueue") == 0) {
+      MH_INFO("Configure buffering");
+      g_object_set (G_OBJECT(element), 
+          "max-size-time", (guint64)5000000000,
+          "max-size-bytes", 0,
+          nullptr);
+      //g_object_set (element, "use-buffering", TRUE, nullptr);
+      //g_object_set (element, "max-size-bytes", 0, nullptr);
+      //g_object_set (element, "max-size-time", (guint64)5000000000, nullptr);
     }
 }
 

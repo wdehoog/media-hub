@@ -46,7 +46,8 @@ struct Playbin
     {
         GST_PLAY_FLAG_VIDEO = (1 << 0),
         GST_PLAY_FLAG_AUDIO = (1 << 1),
-        GST_PLAY_FLAG_TEXT = (1 << 2)
+        GST_PLAY_FLAG_TEXT = (1 << 2),
+	GST_PLAY_FLAG_DOWNLOAD = (1 << 7)
     };
 
     enum MediaFileType
@@ -65,6 +66,10 @@ struct Playbin
     static void source_setup(GstElement*,
                              GstElement *source,
                              gpointer user_data);
+
+    static void element_setup_cb(GstElement* playbin,
+                                 GstElement *element,
+                                 gpointer user_data);
 
     Playbin(const core::ubuntu::media::Player::PlayerKey key);
     ~Playbin();
@@ -99,6 +104,7 @@ struct Playbin
     std::string uri() const;
 
     void setup_source(GstElement *source);
+    void setup_element(GstElement *element);
 
     // Sets the pipeline state in the main thread context instead of the possibility of creating
     // a deadlock in the streaming thread
@@ -136,6 +142,7 @@ struct Playbin
     core::ubuntu::media::Player::Lifetime player_lifetime;
     gulong about_to_finish_handler_id;
     gulong source_setup_handler_id;
+    gulong element_setup_handler_id;
     struct
     {
         core::Signal<void> about_to_finish;
