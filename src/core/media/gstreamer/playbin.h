@@ -47,7 +47,8 @@ struct Playbin
         GST_PLAY_FLAG_VIDEO = (1 << 0),
         GST_PLAY_FLAG_AUDIO = (1 << 1),
         GST_PLAY_FLAG_TEXT = (1 << 2),
-	GST_PLAY_FLAG_DOWNLOAD = (1 << 7)
+	GST_PLAY_FLAG_DOWNLOAD = (1 << 7),
+	GST_PLAY_FLAG_BUFFERING = (1 << 8)
     };
 
     enum MediaFileType

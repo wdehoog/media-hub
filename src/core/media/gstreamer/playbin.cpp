@@ -409,17 +409,34 @@ static void got_location (GstObject *gstobject, GstObject *prop_object, GParamSp
 void gstreamer::Playbin::setup_pipeline_for_audio_video()
 {
     gint flags;
+    char * playbin_env_var;
+
     g_object_get (pipeline, "flags", &flags, nullptr);
     flags |= GST_PLAY_FLAG_AUDIO;
     flags |= GST_PLAY_FLAG_VIDEO;
-    //flags |= GST_PLAY_FLAG_DOWNLOAD; // testing
     flags &= ~GST_PLAY_FLAG_TEXT;
+
+    playbin_env_var = ::getenv("PLAYBIN_ADDITIONAL_FLAGS");
+    if (playbin_env_var != nullptr) {
+        const unsigned int playbin_additional_flags = strtol(playbin_env_var, nullptr, 0);
+        MH_INFO(" adding playbin flags 0x%X", playbin_additional_flags);
+        flags |= playbin_additional_flags;
+    }
     g_object_set (pipeline, "flags", flags, nullptr);
 
-    /* limit the amount of downloaded data */
-    g_object_set (pipeline, "ring-buffer-max-size", (guint64)1000000, NULL);
-    //g_object_set (pipeline, "temp-template", "/tmp/media-hub/download-buffer-XXXXXX", nullptr);
-    //g_signal_connect (pipeline, "deep-notify::temp-location", G_CALLBACK (got_location), NULL);
+    playbin_env_var = ::getenv("PLAYBIN_BUFFER_SIZE");
+    if (playbin_env_var != nullptr) {
+        const int playbin_buffer_size = strtol(playbin_env_var, nullptr, 0);
+        MH_INFO(" setting playbin buffer-size to %d", playbin_buffer_size);
+        g_object_set (pipeline, "buffer-size", playbin_buffer_size, nullptr);
+    }
+
+    playbin_env_var = ::getenv("PLAYBIN_BUFFER_DURATION");
+    if (playbin_env_var != nullptr) {
+        const long long playbin_buffer_duration = strtoll(playbin_env_var, nullptr, 0);
+        MH_INFO(" setting playbin buffer-duration to %lld", playbin_buffer_duration);
+        g_object_set (pipeline, "buffer-duration", playbin_buffer_duration, nullptr);
+    }
 
     const char *asink_name = ::getenv("CORE_UBUNTU_MEDIA_SERVICE_AUDIO_SINK_NAME");
 
@@ -620,29 +637,33 @@ void gstreamer::Playbin::setup_element(GstElement *element) {
     gchar *name = gst_element_get_name(element); 
     MH_INFO("Element setup of: " + (std::string)name); 
     // queue2-0
-    if(g_strcmp0(name, "queue2-0") == 0) {
+    /*if(g_strcmp0(name, "queue2-0") == 0) {
       MH_INFO("Configure buffering: start");
       g_object_set (G_OBJECT(element), 
-          "max-size-time", (guint64)5000000000,
-          "max-size-bytes",(guint)1000000,
+          "max-size-bytes", (guint)4000000,
+          "max-size-time", (guint64)8000000000,
           "use-buffering", (gboolean)TRUE, 
           nullptr);
       MH_INFO("Configure buffering: done");
       //g_object_set (element, "use-buffering", TRUE, nullptr);
       //g_object_set (element, "max-size-time", (guint64)5000000000, nullptr);
       //g_object_set (element, "max-size-bytes", 0, nullptr);
-    }
+    }*/
+
     // aqueue
-    if(g_strcmp0(name, "aqueue") == 0) {
+    /*if(g_strcmp0(name, "aqueue") == 0) {
       MH_INFO("Configure buffering");
       g_object_set (G_OBJECT(element), 
-          "max-size-time", (guint64)5000000000,
-          "max-size-bytes", 0,
+          "max-size-time", (guint64)8000000000,
+          "max-size-bytes", (guint)2000000,
+          "silent", (gboolean)TRUE,
+          //"max-size-bytes", 0,
           nullptr);
       //g_object_set (element, "use-buffering", TRUE, nullptr);
       //g_object_set (element, "max-size-bytes", 0, nullptr);
       //g_object_set (element, "max-size-time", (guint64)5000000000, nullptr);
-    }
+      MH_INFO("Configure buffering: done");
+    }*/
 }
 
 std::string gstreamer::Playbin::uri() const
